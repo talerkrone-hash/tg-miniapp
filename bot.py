@@ -52,7 +52,7 @@ from aiogram.types import (
 # ВАЖНО про безопасность: токен — это как пароль от бота. Если будешь
 # выкладывать этот код на GitHub — не забудь удалить токен из файла
 # (или вынести его в переменную окружения через os.getenv("BOT_TOKEN")).
-BOT_TOKEN = "8844337587:AAG9ea8Zw78ohV7YljobRy2bLbkrv9MNXdI"
+BOT_TOKEN = "8844337587:AAG7xs5avqRDwoUahIZoXDsoTaPJwc7m0JI"
 
 # HTTPS-ссылка на index.html. Во время локального теста сюда нужно
 # вставить адрес, который выдаст ngrok (см. пошаговую инструкцию в чате).

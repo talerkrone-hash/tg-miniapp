@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<!--
+  =====================================================================
+  index.html — Telegram Mini App "Tim Taler — No-Code архитектор"
+  =====================================================================
+  Что это за файл: обычная веб-страница (HTML + CSS + JS в одном файле),
+  которую Telegram открывает ВНУТРИ себя, как маленькое веб-приложение.
+
+  Как это работает "на пальцах":
+  1. Пользователь жмёт кнопку в боте -> Telegram открывает эту страницу
+     в специальном окне (WebView) внутри мессенджера.
+  2. Подключённый ниже скрипт telegram-web-app.js даёт странице доступ
+     к объекту window.Telegram.WebApp — через него можно узнать тему
+     оформления пользователя, развернуть окно на весь экран,
+     а главное — отправить данные обратно в бота методом sendData().
+  3. Когда пользователь заполняет форму и жмёт "Отправить", мы вызываем
+     Telegram.WebApp.sendData(...) — Telegram сам доставит эти данные
+     нашему боту (см. bot.py), а окно Mini App автоматически закроется.
+
+  Файл специально сделан ОДНИМ файлом (HTML+CSS+JS вместе) — так проще
+  тестировать через ngrok: не нужно настраивать пути к отдельным
+  файлам стилей/скриптов.
+  =====================================================================
+-->
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+
+  <!--
+    viewport-fit=cover нужен, чтобы контент мог "дотягиваться" до самых
+    краёв экрана на телефонах с "чёлкой"/скруглёнными углами — дальше
+    в CSS мы аккуратно отступаем от них через env(safe-area-inset-*).
+  -->
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+  />
+  <title>Tim Taler — No-Code архитектор</title>
+
+  <!--
+    ШАГ 1 ИЗ ТЗ: официальный SDK Telegram Web App.
+    Он даёт нам объект window.Telegram.WebApp (тема, размеры, sendData и т.д.)
+    Важно: этот тег должен быть в <head>, и лучше без async/defer —
+    Telegram ожидает, что объект будет готов максимально рано.
+  -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+  <style>
+    /* =================================================================
+       БЛОК ПЕРЕМЕННЫХ ТЕМЫ (ШАГ 5 ИЗ ТЗ)
+       =================================================================
+       Telegram, открывая Mini App, автоматически прокидывает в CSS
+       кастомные свойства вида --tg-theme-bg-color и т.д., подстроенные
+       под текущую тему пользователя (светлая/тёмная/своя в клиенте).
+
+       Мы объявляем СВОИ переменные (--bg, --accent и т.п.), которые
+       СНАЧАЛА пытаются взять значение у Telegram (--tg-theme-*),
+       а если страница открыта НЕ в Telegram (например, ты просто
+       открыл её в браузере при тестировании) — используют дизайн
+       "по умолчанию": тёмный индиго/фиолетовый, как ты и просил.
+
+       Синтаксис var(A, B) означает: "используй A, а если A не задана — B".
+    ================================================================== */
+    :root {
+      /* --- Фон и поверхности --- */
+      --bg: var(--tg-theme-bg-color, #0b0b14);
+      --bg-secondary: var(--tg-theme-secondary-bg-color, #15151f);
+      --surface: #1a1a27;
+      --surface-hover: #212132;
+      --separator: #242435;
+
+      /* --- Текст --- */
+      --text: var(--tg-theme-text-color, #edeef2);
+      --hint: var(--tg-theme-hint-color, #8c8ca3);
+
+      /* --- Акцент: индиго/фиолетовый градиент --- */
+      --accent: var(--tg-theme-button-color, #6c5ce7);
+      --accent-2: #a66cff;
+      --accent-text: var(--tg-theme-button-text-color, #ffffff);
+      --link: var(--tg-theme-link-color, #9b8cff);
+
+      /* --- Технические переменные --- */
+      --radius: 16px;
+      --radius-sm: 12px;
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+    }
+
+    /* Сброс базовых отступов браузера + рамка box-sizing на все элементы —
+       стандартная гигиена перед вёрсткой, чтобы padding не "ломал" ширину. */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html,
+    body {
+      /* Не даём странице скроллиться вбок — на мобильных это частая беда */
+      overflow-x: hidden;
+      background: var(--bg);
+    }
+
+    body {
+      /*
+        Шрифт: используем системный шрифт устройства (system-ui и его
+        аналоги для разных ОС/браузеров), а не какой-то "красивый"
+        шрифт из интернета. Это осознанный выбор для Mini App:
+        - страница грузится мгновенно (не ждём загрузку внешнего шрифта);
+        - интерфейс визуально "сливается" с родным интерфейсом Telegram,
+          который тоже использует системные шрифты на каждой платформе.
+      */
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+        "Helvetica Neue", Arial, sans-serif;
+      color: var(--text);
+      -webkit-font-smoothing: antialiased;
+      line-height: 1.4;
+    }
+
+    /* Центрируем контент и ограничиваем максимальную ширину — если кто-то
+       откроет эту же ссылку на десктопе в обычном браузере (например,
+       при тестировании через ngrok), страница не "расползётся" на весь
+       экран, а останется аккуратной "телефонной" колонкой. */
+    .app {
+      max-width: 480px;
+      margin: 0 auto;
+      min-height: 100vh;
+      padding: calc(24px + var(--safe-top)) 20px calc(32px + var(--safe-bottom));
+      position: relative;
+    }
+
+    /* Едва заметная "чертёжная" сетка на фоне шапки — тонкая отсылка
+       к слову "архитектор" (архитекторы работают с чертежами и сеткой).
+       Это наш единственный "смелый" декоративный акцент — остальной
+       дизайн намеренно спокойный и лаконичный. */
+    .blueprint-grid {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 260px;
+      background-image: linear-gradient(var(--separator) 1px, transparent 1px),
+        linear-gradient(90deg, var(--separator) 1px, transparent 1px);
+      background-size: 28px 28px;
+      opacity: 0.35;
+      -webkit-mask-image: linear-gradient(to bottom, black, transparent);
+      mask-image: linear-gradient(to bottom, black, transparent);
+      pointer-events: none;
+    }
+
+    /* ================= ШАПКА ПРОФИЛЯ ================= */
+    .profile {
+      position: relative;
+      text-align: center;
+      padding-top: 8px;
+      padding-bottom: 28px;
+    }
+
+    /* Аватар-заглушка: просто круг с инициалами и градиентным кольцом
+       вокруг — не требует загрузки картинки, работает "из коробки".
+       Когда появится настоящее фото — просто замени содержимое .avatar
+       на <img src="твоя-фотография.jpg" alt="Tim Taler"> */
+    .avatar-ring {
+      width: 96px;
+      height: 96px;
+      margin: 0 auto 16px;
+      border-radius: 50%;
+      padding: 3px;
+      background: conic-gradient(
+        from 180deg,
+        var(--accent),
+        var(--accent-2),
+        var(--accent)
+      );
+      animation: rotate 6s linear infinite;
+    }
+
+    @keyframes rotate {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .avatar {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      background: var(--bg-secondary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 30px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .name {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+
+    .tagline {
+      margin-top: 8px;
+      font-size: 14px;
+      color: var(--hint);
+      line-height: 1.55;
+      max-width: 320px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    /* ================= ЗАГОЛОВКИ СЕКЦИЙ ================= */
+    /* Маленькая градиентная "линейка" перед заголовком — структурный
+       элемент, который перекликается с чертёжной сеткой в шапке. */
+    .section-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 17px;
+      font-weight: 700;
+      margin: 32px 0 14px;
+    }
+
+    .section-title::before {
+      content: "";
+      width: 22px;
+      height: 4px;
+      border-radius: 4px;
+      background: linear-gradient(90deg, var(--accent), var(--accent-2));
+      flex-shrink: 0;
+    }
+
+    /* ================= КАРТОЧКИ УСЛУГ ================= */
+    .cards-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    /* На совсем узких экранах (старые/маленькие телефоны) —
+       складываем карточки в один столбец, чтобы текст не сжимался. */
+    @media (max-width: 340px) {
+      .cards-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--separator);
+      border-radius: var(--radius-sm);
+      padding: 14px;
+      transition: background 0.15s ease, transform 0.15s ease;
+    }
+
+    .card-icon {
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 17px;
+      background: linear-gradient(
+        135deg,
+        color-mix(in srgb, var(--accent) 25%, transparent),
+        color-mix(in srgb, var(--accent-2) 25%, transparent)
+      );
+      margin-bottom: 10px;
+    }
+
+    .card-title {
+      font-size: 13.5px;
+      font-weight: 600;
+      line-height: 1.3;
+    }
+
+    .card-desc {
+      margin-top: 4px;
+      font-size: 12px;
+      color: var(--hint);
+      line-height: 1.4;
+    }
+
+    /* ================= КНОПКИ ================= */
+    .btn {
+      display: block;
+      width: 100%;
+      border: none;
+      cursor: pointer;
+      border-radius: var(--radius-sm);
+      padding: 15px 20px;
+      font-size: 15px;
+      font-weight: 600;
+      font-family: inherit;
+      transition: transform 0.1s ease, opacity 0.15s ease;
+    }
+
+    /* Небольшой "тактильный" эффект нажатия — кнопка чуть сжимается,
+       это стандартный приём для мобильных интерфейсов. */
+    .btn:active {
+      transform: scale(0.97);
+    }
+
+    .btn-primary {
+      margin-top: 26px;
+      background: linear-gradient(90deg, var(--accent), var(--accent-2));
+      color: var(--accent-text);
+      box-shadow: 0 8px 24px -8px color-mix(in srgb, var(--accent) 70%, transparent);
+    }
+
+    .btn-secondary {
+      margin-top: 12px;
+      background: transparent;
+      color: var(--hint);
+      font-weight: 500;
+      font-size: 14px;
+    }
+
+    /* ================= ФОРМА ЗАЯВКИ ================= */
+    .form-section {
+      margin-top: 32px;
+      /* Плавное появление формы вместо резкого "прыжка" */
+      animation: fade-in 0.25s ease;
+    }
+
+    @keyframes fade-in {
+      from {
+        opacity: 0;
+        transform: translateY(8px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* Пока форма скрыта — просто убираем её из потока */
+    .hidden {
+      display: none;
+    }
+
+    .field {
+      display: block;
+      margin-bottom: 14px;
+    }
+
+    .field-label {
+      display: block;
+      font-size: 13px;
+      color: var(--hint);
+      margin-bottom: 6px;
+    }
+
+    .field input,
+    .field textarea {
+      width: 100%;
+      background: var(--bg-secondary);
+      border: 1px solid var(--separator);
+      border-radius: 10px;
+      padding: 12px 14px;
+      font-size: 15px;
+      font-family: inherit;
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    /* Обёртка поля телефона: слева — неизменяемый "+7", справа — обычный
+       инпут для оставшихся 10 цифр. Визуально выглядит как одно поле. */
+    .phone-input {
+      display: flex;
+      align-items: center;
+      background: var(--bg-secondary);
+      border: 1px solid var(--separator);
+      border-radius: 10px;
+      padding-left: 14px;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .phone-prefix {
+      font-size: 15px;
+      color: var(--hint);
+      user-select: none; /* нельзя случайно выделить/стереть как текст */
+      flex-shrink: 0;
+    }
+
+    /* У самого инпута убираем собственную рамку и фон — рамку и фон
+       теперь рисует обёртка .phone-input целиком */
+    .phone-input input {
+      border: none !important;
+      background: transparent !important;
+      padding-left: 6px !important;
+      box-shadow: none !important; /* свечение при фокусе рисует только обёртка */
+    }
+
+    /* Подсветку фокуса вешаем на обёртку через :focus-within, потому что
+       фокус физически стоит на внутреннем <input>, а не на самой обёртке */
+    .phone-input:focus-within {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent);
+    }
+
+    .field textarea {
+      resize: vertical;
+      min-height: 84px;
+    }
+
+    /* Подсветка поля при фокусе — акцентным цветом, чтобы форма
+       ощущалась "живой" и соответствовала общей палитре. */
+    .field input:focus,
+    .field textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent);
+    }
+
+    .form-hint {
+      margin-top: 4px;
+      font-size: 12px;
+      color: var(--hint);
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="blueprint-grid"></div>
+
+    <!-- ================= ПРОФИЛЬ ================= -->
+    <header class="profile">
+      <div class="avatar-ring">
+        <div class="avatar">TT</div>
+      </div>
+      <h1 class="name">Tim Taler</h1>
+      <p class="tagline">
+        No-Code архитектор мобильных приложений и экосистем Telegram &amp; .gram
+      </p>
+    </header>
+
+    <!-- ================= УСЛУГИ ================= -->
+    <section>
+      <h2 class="section-title">Мои услуги</h2>
+
+      <div class="cards-grid">
+        <div class="card">
+          <div class="card-icon">🧩</div>
+          <div class="card-title">Разработка Mini Apps</div>
+          <div class="card-desc">Веб-приложения внутри Telegram</div>
+        </div>
+
+        <div class="card">
+          <div class="card-icon">⚙️</div>
+          <div class="card-title">Автоматизация бизнеса</div>
+          <div class="card-desc">Боты и сценарии без ручной работы</div>
+        </div>
+
+        <div class="card">
+          <div class="card-icon">📱</div>
+          <div class="card-title">Мобильные приложения</div>
+          <div class="card-desc">No-Code решения для iOS и Android</div>
+        </div>
+
+        <div class="card">
+          <div class="card-icon">🌐</div>
+          <div class="card-title">Проектирование в зоне .gram</div>
+          <div class="card-desc">Экосистемы нового домена Telegram</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Кнопка открытия формы -->
+    <button id="openFormBtn" class="btn btn-primary" type="button">
+      Оставить заявку
+    </button>
+
+    <!-- ================= ФОРМА ЗАЯВКИ (изначально скрыта) ================= -->
+    <section id="formSection" class="form-section hidden">
+      <h2 class="section-title">Заявка на консультацию</h2>
+
+      <form id="leadForm">
+        <label class="field">
+          <span class="field-label">Имя</span>
+          <input type="text" id="name" name="name" placeholder="Как к вам обращаться" required />
+        </label>
+
+        <label class="field">
+          <span class="field-label">Телефон</span>
+          <!--
+            "+7" зафиксирован и не редактируется — пользователь вводит
+            только оставшиеся 10 цифр номера. Итоговый номер (+7 + цифры)
+            собирается в JS при отправке формы, см. функцию ниже.
+          -->
+          <div class="phone-input">
+            <span class="phone-prefix">+7</span>
+            <input
+              type="tel"
+              id="phone"
+              name="phone"
+              inputmode="numeric"
+              placeholder="900 123-45-67"
+              maxlength="10"
+              required
+            />
+          </div>
+        </label>
+
+        <label class="field">
+          <span class="field-label">Описание задачи</span>
+          <textarea id="task" name="task" placeholder="Кратко опишите, что нужно сделать" required></textarea>
+        </label>
+
+        <button type="submit" class="btn btn-primary">Отправить заявку</button>
+        <button type="button" id="cancelFormBtn" class="btn btn-secondary">Отмена</button>
+
+        <p class="form-hint">Заявку увидит только Tim Taler в чате бота</p>
+      </form>
+    </section>
+  </div>
+
+  <script>
+    /* =================================================================
+       JAVASCRIPT-ЛОГИКА
+       ================================================================= */
+
+    // Получаем объект Telegram Web App. Если страница открыта НЕ внутри
+    // Telegram (например, ты тестируешь её в обычном браузере), этого
+    // объекта не будет — поэтому проверяем через `?.` и запасной вариант.
+    const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
+
+    if (tg) {
+      // ready() сообщает Telegram, что страница загрузилась и готова к показу
+      tg.ready();
+      // expand() разворачивает окно Mini App на максимально доступную высоту
+      tg.expand();
+
+      // --- Подстройка темы (ШАГ 5 ИЗ ТЗ, "ручной" вариант) -------------
+      // Некоторые версии клиента Telegram сами проставляют CSS-переменные
+      // --tg-theme-*, но для надёжности мы дублируем это вручную из
+      // объекта tg.themeParams — тогда тема точно подхватится везде.
+      applyTelegramTheme(tg.themeParams);
+
+      // Если пользователь переключит тему прямо во время использования
+      // приложения (светлая/тёмная), Telegram пришлёт событие themeChanged —
+      // подписываемся на него, чтобы перекрасить страницу "на лету".
+      tg.onEvent("themeChanged", () => applyTelegramTheme(tg.themeParams));
+    } else {
+      // Мы не внутри Telegram — это нормально при локальной разработке.
+      // Просто предупреждаем в консоли браузера (F12 -> Console),
+      // дизайн при этом всё равно будет виден благодаря CSS-заглушкам.
+      console.warn(
+        "Telegram.WebApp не найден — страница открыта не внутри Telegram. " +
+          "Это нормально при тестировании в обычном браузере."
+      );
+    }
+
+    /**
+     * Переносит цвета темы Telegram (tg.themeParams) в CSS-переменные
+     * --tg-theme-*, которые уже используются в <style> через var(...).
+     */
+    function applyTelegramTheme(themeParams) {
+      if (!themeParams) return;
+      const root = document.documentElement.style;
+      const map = {
+        bg_color: "--tg-theme-bg-color",
+        secondary_bg_color: "--tg-theme-secondary-bg-color",
+        text_color: "--tg-theme-text-color",
+        hint_color: "--tg-theme-hint-color",
+        link_color: "--tg-theme-link-color",
+        button_color: "--tg-theme-button-color",
+        button_text_color: "--tg-theme-button-text-color",
+      };
+      for (const key in map) {
+        if (themeParams[key]) {
+          root.setProperty(map[key], themeParams[key]);
+        }
+      }
+    }
+
+    // --- Показ/скрытие формы -------------------------------------------
+    const openFormBtn = document.getElementById("openFormBtn");
+    const cancelFormBtn = document.getElementById("cancelFormBtn");
+    const formSection = document.getElementById("formSection");
+    const leadForm = document.getElementById("leadForm");
+    const phoneInput = document.getElementById("phone");
+
+    // --- Поле телефона: разрешаем вводить только цифры -----------------
+    // "+7" у нас уже нарисован отдельным элементом .phone-prefix в HTML
+    // и не редактируется, поэтому здесь достаточно просто "отфильтровать"
+    // всё, что не цифра, и ограничить длину десятью символами
+    // (10 цифр — стандартная длина российского номера без +7).
+    phoneInput.addEventListener("input", () => {
+      phoneInput.value = phoneInput.value.replace(/\D/g, "").slice(0, 10);
+    });
+
+    openFormBtn.addEventListener("click", () => {
+      formSection.classList.remove("hidden");
+      openFormBtn.classList.add("hidden");
+      // Плавно прокручиваем экран к форме, чтобы пользователь её сразу увидел
+      formSection.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+
+    cancelFormBtn.addEventListener("click", () => {
+      formSection.classList.add("hidden");
+      openFormBtn.classList.remove("hidden");
+      leadForm.reset();
+    });
+
+    // --- Отправка формы (ШАГ 4 ИЗ ТЗ) -----------------------------------
+    leadForm.addEventListener("submit", (event) => {
+      // Отменяем стандартную отправку формы (перезагрузку страницы) —
+      // мы отправляем данные сами, через Telegram API.
+      event.preventDefault();
+
+      // Проверяем, что все 10 цифр телефона введены — required у input
+      // сработает только на пустое поле, а не на "введено маловато цифр",
+      // поэтому длину проверяем отдельно вручную.
+      const phoneDigits = phoneInput.value.trim();
+      if (phoneDigits.length !== 10) {
+        phoneInput.focus();
+        alert("Введите номер телефона полностью — 10 цифр после +7");
+        return;
+      }
+
+      const data = {
+        name: document.getElementById("name").value.trim(),
+        phone: "+7" + phoneDigits, // склеиваем зафиксированный +7 с цифрами
+        task: document.getElementById("task").value.trim(),
+      };
+
+      if (tg) {
+        // Главная строка задания: отправляем JSON-строку в бота.
+        // Telegram сам доставит её боту как сообщение с полем
+        // web_app_data (см. bot.py) и ПОСЛЕ ЭТОГО САМ ЗАКРОЕТ Mini App —
+        // отдельно вызывать tg.close() не нужно.
+        tg.sendData(JSON.stringify(data));
+      } else {
+        // Запасной вариант для теста в обычном браузере (не в Telegram):
+        // sendData() там не существует, поэтому просто показываем,
+        // что было бы отправлено.
+        alert(
+          "Тестовый режим (вне Telegram).\nБыли бы отправлены данные:\n\n" +
+            JSON.stringify(data, null, 2)
+        );
+        console.log("Данные формы (тестовый режим):", data);
+      }
+    });
+
+    /* =================================================================
+       ЧТО МОЖНО ДОБАВИТЬ ДАЛЬШЕ (не обязательно для MVP):
+       - tg.MainButton — нативная кнопка Telegram внизу экрана
+         (tg.MainButton.setText("Отправить"); tg.MainButton.show();)
+       - tg.HapticFeedback.impactOccurred("light") — вибро-отклик на тап
+       - tg.BackButton — нативная кнопка "назад" в шапке Telegram
+       Документация: https://core.telegram.org/bots/webapps
+       ================================================================= */
+  </script>
+</body>
+</html>

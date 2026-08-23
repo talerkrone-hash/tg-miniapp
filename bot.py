@@ -58,7 +58,7 @@ BOT_TOKEN = "8844337587:AAG9ea8Zw78ohV7YljobRy2bLbkrv9MNXdI"
 # вставить адрес, который выдаст ngrok (см. пошаговую инструкцию в чате).
 # Telegram категорически не откроет Mini App по адресу вида
 # http://localhost:8000 — обязательно нужен именно https.
-WEB_APP_URL = "https://jubilance-educator-escapist.ngrok-free.dev/index.html?v=2"
+WEB_APP_URL = "https://talerkrone-hash.github.io/tg-miniapp/"
 
 # Включаем логирование, чтобы в консоли было видно, что бот делает
 # и на каком шаге, если вдруг что-то пойдёт не так.

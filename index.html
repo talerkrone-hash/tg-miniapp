@@ -23,6 +23,7 @@
   =====================================================================
 -->
 <html lang="ru">
+
 <head>
   <meta charset="UTF-8" />
 
@@ -31,10 +32,8 @@
     краёв экрана на телефонах с "чёлкой"/скруглёнными углами — дальше
     в CSS мы аккуратно отступаем от них через env(safe-area-inset-*).
   -->
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
-  />
+  <meta name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Tim Taler — No-Code архитектор</title>
 
   <!--
@@ -166,12 +165,10 @@
       margin: 0 auto 16px;
       border-radius: 50%;
       padding: 3px;
-      background: conic-gradient(
-        from 180deg,
-        var(--accent),
-        var(--accent-2),
-        var(--accent)
-      );
+      background: conic-gradient(from 180deg,
+          var(--accent),
+          var(--accent-2),
+          var(--accent));
       animation: rotate 6s linear infinite;
     }
 
@@ -251,7 +248,13 @@
       border: 1px solid var(--separator);
       border-radius: var(--radius-sm);
       padding: 14px;
-      transition: background 0.15s ease, transform 0.15s ease;
+      transition: background 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+      box-shadow: 0 4px 14px -6px rgba(0, 0, 0, 0.4);
+    }
+
+    .card:active {
+      transform: scale(0.97);
+      box-shadow: 0 2px 8px -4px rgba(0, 0, 0, 0.5);
     }
 
     .card-icon {
@@ -262,11 +265,9 @@
       align-items: center;
       justify-content: center;
       font-size: 17px;
-      background: linear-gradient(
-        135deg,
-        color-mix(in srgb, var(--accent) 25%, transparent),
-        color-mix(in srgb, var(--accent-2) 25%, transparent)
-      );
+      background: linear-gradient(135deg,
+          color-mix(in srgb, var(--accent) 25%, transparent),
+          color-mix(in srgb, var(--accent-2) 25%, transparent));
       margin-bottom: 10px;
     }
 
@@ -307,7 +308,7 @@
       margin-top: 26px;
       background: linear-gradient(90deg, var(--accent), var(--accent-2));
       color: var(--accent-text);
-      box-shadow: 0 8px 24px -8px color-mix(in srgb, var(--accent) 70%, transparent);
+      box-shadow: 0 10px 28px -6px color-mix(in srgb, var(--accent) 65%, transparent);
     }
 
     .btn-secondary {
@@ -330,6 +331,7 @@
         opacity: 0;
         transform: translateY(8px);
       }
+
       to {
         opacity: 1;
         transform: translateY(0);
@@ -382,7 +384,8 @@
     .phone-prefix {
       font-size: 15px;
       color: var(--hint);
-      user-select: none; /* нельзя случайно выделить/стереть как текст */
+      user-select: none;
+      /* нельзя случайно выделить/стереть как текст */
       flex-shrink: 0;
     }
 
@@ -392,7 +395,8 @@
       border: none !important;
       background: transparent !important;
       padding-left: 6px !important;
-      box-shadow: none !important; /* свечение при фокусе рисует только обёртка */
+      box-shadow: none !important;
+      /* свечение при фокусе рисует только обёртка */
     }
 
     /* Подсветку фокуса вешаем на обёртку через :focus-within, потому что
@@ -423,6 +427,7 @@
     }
   </style>
 </head>
+
 <body>
   <div class="app">
     <div class="blueprint-grid"></div>
@@ -493,15 +498,8 @@
           -->
           <div class="phone-input">
             <span class="phone-prefix">+7</span>
-            <input
-              type="tel"
-              id="phone"
-              name="phone"
-              inputmode="numeric"
-              placeholder="900 123-45-67"
-              maxlength="10"
-              required
-            />
+            <input type="tel" id="phone" name="phone" inputmode="numeric" placeholder="900 123-45-67" maxlength="10"
+              required />
           </div>
         </label>
 
@@ -550,7 +548,7 @@
       // дизайн при этом всё равно будет виден благодаря CSS-заглушкам.
       console.warn(
         "Telegram.WebApp не найден — страница открыта не внутри Telegram. " +
-          "Это нормально при тестировании в обычном браузере."
+        "Это нормально при тестировании в обычном браузере."
       );
     }
 
@@ -640,7 +638,7 @@
         // что было бы отправлено.
         alert(
           "Тестовый режим (вне Telegram).\nБыли бы отправлены данные:\n\n" +
-            JSON.stringify(data, null, 2)
+          JSON.stringify(data, null, 2)
         );
         console.log("Данные формы (тестовый режим):", data);
       }
@@ -656,4 +654,5 @@
        ================================================================= */
   </script>
 </body>
+
 </html>
